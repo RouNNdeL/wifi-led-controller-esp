@@ -1,43 +1,96 @@
 #include <Arduino.h>
-#include <ESP8266WebServer.h>
 #include <HardwareSerial.h>
 #include <FS.h>
+#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWiFiManager.h>
+#include <ESP8266HTTPClient.h>
 
-ESP8266WebServer httpd;
+#include "config.h"
+#include "communication.h"
 
+WiFiServer tcp(CONFIG_TCP_PORT);
 
-ICACHE_RAM_ATTR void move_right() {
-    Serial.write('r');
-    httpd.send(200);
-}
+AsyncWebServer server(80);
+DNSServer dns;
 
-ICACHE_RAM_ATTR void move_left() {
-    Serial.write('l');
-    httpd.send(200);
-}
+uint8_t *uart_buffer;
+uint8_t buffer_index;
+uint8_t buffer_size;
+
+uint8_t flags;
 
 void setup() {
     Serial.begin(9600);
+    tcp.begin();
 
-    WiFi.mode(WIFI_STA);
-
-    WiFi.begin("********", "********");
-    while(!WiFi.isConnected()) {delay(1);};
-    Serial.println(WiFi.localIP());
-
-    httpd.on("/r", HTTP_POST, move_right);
-    httpd.on("/l", HTTP_POST, move_left);
-    httpd.on("/", []() {
-        File file = SPIFFS.open("/index.html", "r");
-        httpd.streamFile(file, "text/html");
-        file.close();
-    });
-
-    httpd.begin();
-
-    SPIFFS.begin();
+    AsyncWiFiManager wifiManager(&server, &dns);
+    wifiManager.setDebugOutput(true);
+    wifiManager.autoConnect(CONFIG_AP_NAME);
 }
 
 void loop() {
-    httpd.handleClient();
+    uint8_t has_client = tcp.hasClient();
+    if(has_client) {
+        WiFiClient client = tcp.available();
+        if(client) {
+
+            /*
+             * From time to time there are no bytes available, despite a client being.
+             * We wait up to 10ms for some to appear, if nothing appears, the client didn't send any data
+             */
+            for(uint8_t i = 0; i < 10; ++i) {
+                delay(1);
+                if(client.available())
+                    break;
+            }
+
+            while(client.available()) {
+                Serial.write(client.read());
+            }
+
+            /* Wait 100ms for serial data response*/
+            for(uint8_t i = 0; i < 100; ++i) {
+                delay(1);
+                if(Serial.available()) {
+                    break;
+                }
+            }
+
+            client.write(!Serial.available() ? TCP_ERROR_NO_RESPONSE : TCP_SUCCESS);
+
+            while(Serial.available()) {
+                client.write(Serial.read());
+            }
+
+            client.flush();
+            client.stop();
+        }
+    }
+
+    while(Serial.available()) {
+        if(flags & FLAG_UART_RECEIVING) {
+            if(buffer_index < buffer_size) {
+                uart_buffer[buffer_index] = Serial.read();
+                buffer_index++;
+            } else {
+                std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+
+                client->setFingerprint(HTTP_SERVER_HTTPS_FINGERPRINT);
+                HTTPClient https;
+
+                if(https.begin(*client, String(HTTP_SERVER_HOST) + HTTP_SERVER_REPORT_URL)) {
+                    https.POST(uart_buffer, buffer_size);
+                    https.end();
+                }
+
+                flags &= ~FLAG_UART_RECEIVING;
+            }
+        } else {
+            buffer_size = Serial.read();
+            uart_buffer = (uint8_t *) malloc(buffer_size);
+            buffer_index = 0;
+
+            flags |= FLAG_UART_RECEIVING;
+        }
+    }
 }
