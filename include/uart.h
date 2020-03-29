@@ -1,0 +1,30 @@
+
+#ifndef ESP_UART_H
+#define ESP_UART_H
+
+#define BAUD 38400                                   // define baud
+
+#define STATE_NONE 0x00
+#define STATE_RECEIVE_COMMAND 0x01
+#define STATE_RECEIVE_LENGTH 0x02
+#define STATE_RECEIVE_DATA 0x03
+#define STATE_RECEIVE_DONE 0x04
+
+#define UART_BEGIN 0xB0
+#define UART_END 0xB1
+#define UART_ACK 0xA0
+
+#define CMD_SAVE_DEVICE 0x01
+#define CMD_GET_DEVICE 0x02
+#define CMD_GET_ALL_DEVICES 0x03
+#define CMD_DEVICE_RESPONSE 0xA2
+#define CMD_ALL_DEVICES_RESPONSE 0xA3
+#define CMD_REBOOT 0xFF
+
+#define UART_BUFFER_OVERFLOW 0xE0
+#define UART_INVALID_SEQUENCE 0xE1
+#define UART_INVALID_LENGTH 0xE2
+#define UART_DEVICE_INDEX_OUT_OF_BOUNDS 0xF1
+#define UART_INVALID_COMMAND 0xF2
+
+#endif //ESP_UART_H
