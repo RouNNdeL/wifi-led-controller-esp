@@ -18,7 +18,7 @@ uint8_t expected_response_size;
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
     switch (type) {
         case WStype_CONNECTED: {
-            uint8_t resp[] = {0xA0};
+            uint8_t resp[] = {(uint8_t) webSocket.connectedClients()};
             webSocket.sendBIN(num, resp, 1);
             break;
         }
@@ -51,11 +51,11 @@ void handle_uart() {
         }
 
         response_buffer[response_buffer_size++] = byte;
-        if(response_buffer_size == 3) {
+        if(response_buffer_size == 6) {
             expected_response_size = byte;
         }
 
-        if(response_buffer_size == expected_response_size + 4) {
+        if(response_buffer_size == expected_response_size + 7) {
             if(byte == UART_END) {
                 socket_send_data(response_buffer, response_buffer_size);
                 response_buffer_size = 0;
