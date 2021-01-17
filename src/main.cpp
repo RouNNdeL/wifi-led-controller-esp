@@ -32,12 +32,20 @@ const char *deviceIds[DEVICE_COUNT] = DEVICE_IDS;
 PROGMEM const char *discoveryTemplate = "{"
                                         "\"~\":\"%s\","
                                         "\"name\":\"%s\","
-                                        "\"unique_id\":\"%s\","
+                                        "\"uniq_id\":\"%s\","
                                         "\"cmd_t\":\"~/%s\","
                                         "\"stat_t\":\"~/%s\","
                                         "\"schema\":\"json\","
                                         "\"brightness\": true,"
-                                        "\"rgb\":true"
+                                        "\"rgb\":true,"
+                                        "\"dev\":{"
+                                        "\"mf\":\"Krzysztof Zdulski\","
+                                        "\"mdl\":\"LED Controller 2\","
+                                        "\"sw\":\"" VERSION "\","
+                                        "\"name\":\"" DEVICE_NAME "\","
+                                        "\"ids\":[\"" DEVICE_ID "\", \"%08x\"],"
+                                        "\"cns\":[[\"mac\", \"%s\"]]"
+                                        "}"
                                         "}";
 
 const char *topicConfigSuffix = "config";
@@ -53,6 +61,10 @@ void clear_serial() {
     while (Serial.available()) {
         Serial.read();
     }
+}
+
+void send_signal_strength() {
+
 }
 
 void handle_data() {
@@ -93,12 +105,12 @@ void handle_data() {
 
 void uart_send(uint8_t *data, uint16_t size) {
     for (uint16_t i = 0; i < size; ++i) {
-        if(Serial.available() && Serial.peek() == UART_BUSY) {
+        if (Serial.available() && Serial.peek() == UART_BUSY) {
             Serial.read();
             uart_free = false;
         }
         while (!uart_free) {
-            if(Serial.available()) {
+            if (Serial.available()) {
                 uart_free = true;
             }
         }
@@ -203,7 +215,7 @@ void setup() {
 #ifdef DEBUG_ESP_CUSTOM
     wifiManager.setDebugOutput(true);
 #endif // DEBUG_ESP_CUSTOM
-    wifiManager.autoConnect(CONFIG_AP_NAME);
+    wifiManager.autoConnect(DEVICE_NAME);
 
     //mqttTcpClient.setInsecure();
     mqtt.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
@@ -222,12 +234,17 @@ void setup() {
     size_t jsonSize = strlen(discoveryTemplate) + 128;
     char *discoveryJson = static_cast<char *>(malloc(jsonSize));
 
+    char macStr[18] = { 0 };
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
     PRINTLN("Starting discovery");
     for (uint8_t i = 0; i < DEVICE_COUNT; ++i) {
         snprintf(topic, sizeof(topic), "%s/%s", topicPrefix, deviceIds[i]);
         snprintf(deviceUid, sizeof(deviceUid), "%s_%s", nodeId, deviceIds[i]);
         snprintf(discoveryJson, jsonSize, discoveryTemplate, topic, deviceNames[i],
-                 deviceUid, topicSetSuffix, topicStateSuffix);
+                 deviceUid, topicSetSuffix, topicStateSuffix, ESP.getChipId(), macStr);
 
 
         bool success;
@@ -263,6 +280,7 @@ void setup() {
 
 void loop() {
     if (!mqtt.loop()) {
+        delay(RESTART_DELAY * 1000);
         ESP.restart();
     }
     handle_uart();
