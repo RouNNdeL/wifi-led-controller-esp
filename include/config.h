@@ -21,6 +21,12 @@
 #define DEVICE_IDS {"bed_onboard", "bed_bottom", "bed_top"}
 #define DEVICE_NAMES {"Onboard Led - Bed", "Bottom Bed Light", "Top Bed Light"}
 
+#define SIGNAL_SENSOR_NAME "Table - Signal"
+// Has to be different from the other IDs
+#define SIGNAL_SENSOR_ID "table_signal"
+// In Seconds
+#define SIGNAL_PUBLISH_PERIOD 60
+
 #define JSON_BUFFER_SIZE 256
 // In Seconds
 #define RESTART_DELAY 30
