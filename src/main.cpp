@@ -109,8 +109,8 @@ void get_ip(char ipStr[16]) {
              (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
 }
 
-LIB8STATIC_ALWAYS_INLINE void publish(const char* topic, const char* message, bool persist = false) {
-    bool success = mqtt.publish(topic, message);
+LIB8STATIC_ALWAYS_INLINE void publish(const char* topic, const char* message, bool persist) {
+    bool success = mqtt.publish(topic, message, persist);
     if (!success) {
         PRINT("Failed to publish to ");
         PRINTLN(topic);
@@ -135,14 +135,14 @@ void publish_sensor_update() {
 
     get_topic(topic, sizeof(topic), sensorTopicPrefix, SIGNAL_SENSOR_ID, topicStateSuffix);
     snprintf(message, sizeof(message), "%d", rssi);
-    publish(topic, message);
+    publish(topic, message, true);
 
     get_ssid(ssid);
     get_ip(ip);
     snprintf(message, sizeof(message), R"({"rssi":%d,"ssid":"%s","ip":"%s"})", rssi, ssid, ip);
 
     get_topic(topic, sizeof(topic), sensorTopicPrefix, SIGNAL_SENSOR_ID, topicAttributesSuffix);
-    publish(topic, message);
+    publish(topic, message, true);
 }
 
 void handle_data() {

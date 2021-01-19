@@ -17,7 +17,15 @@ lib_deps =
     bblanchon/ArduinoJson@^6.17.2
     fastled/FastLED@^3.4.0
 
-[env:esp07]
+[env:production]
+framework = arduino
+platform = espressif8266
+board = esp07
+board_build.ldscript = eagle.flash.1m256.ld
+board_upload.maximum_size = 1048576
+lib_deps = ${common.lib_deps}
+
+[env:debug]
 framework = arduino
 platform = espressif8266
 board = esp07
@@ -26,6 +34,12 @@ board_upload.maximum_size = 1048576
 lib_deps =
     ${common.lib_deps}
 monitor_speed = 38400
+build_flags =
+    -DDEBUG_ESP_PORT=Serial
+    -DDEBUG_ESP_SSL
+    -DDEBUG_ESP_TLS_MEM
+    -DDEBUG_ESP_HTTP_CLIENT
+    -DDEBUG_ESP_CUSTOM
 
 [env:wemos]
 framework = arduino
