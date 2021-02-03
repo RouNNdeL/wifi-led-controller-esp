@@ -1,9 +1,3 @@
-# Status
-| Device           | Build Status                                                                                                                                        |
-|------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| AVR (ATMega328P) | [![Build Status](https://travis-ci.org/RouNNdeL/wifi-led-controller-avr.svg?branch=master)](https://travis-ci.org/RouNNdeL/wifi-led-controller-avr) |
-| ESP (ESP8266)    | [![Build Status](https://travis-ci.org/RouNNdeL/wifi-led-controller-esp.svg?branch=master)](https://travis-ci.org/RouNNdeL/wifi-led-controller-esp) |
-
 # Introduction
 This is a revised version of the [ESP8266 LED Controller](https://github.com/RouNNdeL/esp8266-leds). It utilizes an ATMega328P handling the LEDs, communicating over UART with an ESP8266 which uses WiFi to talk to an external [Smart Home](https://github.com/RouNNdeL/smart-home) server. The device also features an external I<sup>2</sup>C EEPROM and an on board WS2812B LED.  This repo contains source ESP8266 Arduino C++ files for the ESP. The AVR files can be found [here](https://github.com/RouNNdeL/wifi-led-controller-avr).
 
