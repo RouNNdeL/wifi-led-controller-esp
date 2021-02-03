@@ -29,6 +29,14 @@
 #define DEVICE_NAMES {"Onboard Led - Test", "Test 1", "Test 2", "Test 3"}
 #endif /* DEVICE_NAMES */
 
+#ifndef TEMP_SENSOR_NAME_PREFIX
+#define TEMP_SENSOR_NAME_PREFIX "Test Temperature "
+#endif /* TEMP_SENSOR_NAME_PREFIX */
+
+#ifndef TEMP_SENSOR_ID_PREFIX
+#define TEMP_SENSOR_ID_PREFIX "test_temp"
+#endif /* TEMP_SENSOR_ID_PREFIX */
+
 #ifndef SIGNAL_SENSOR_NAME
 #define SIGNAL_SENSOR_NAME "Test - Signal"
 #endif /* SIGNAL_SENSOR_NAME */
@@ -38,9 +46,9 @@
 #define SIGNAL_SENSOR_ID "test_signal"
 #endif /* SIGNAL_SENSOR_ID */
 // In Seconds
-#ifndef SIGNAL_PUBLISH_PERIOD
-#define SIGNAL_PUBLISH_PERIOD 60
-#endif /* SIGNAL_PUBLISH_PERIOD */
+#ifndef PUBLISH_PERIOD
+#define PUBLISH_PERIOD 60
+#endif /* PUBLISH_PERIOD */
 
 #ifndef JSON_BUFFER_SIZE
 #define JSON_BUFFER_SIZE 256

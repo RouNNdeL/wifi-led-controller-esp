@@ -30,33 +30,33 @@ char sensorTopicPrefix[100];
 const char* deviceNames[DEVICE_COUNT] = DEVICE_NAMES;
 const char* deviceIds[DEVICE_COUNT] = DEVICE_IDS;
 
-PROGMEM const char* discoveryTemplate = "{"
-                                        "\"~\":\"%s\","
-                                        "\"name\":\"%s\","
-                                        "\"uniq_id\":\"%s\","
-                                        "\"cmd_t\":\"~/%s\","
-                                        "\"stat_t\":\"~/%s\","
-                                        "\"schema\":\"json\","
-                                        "\"brightness\": true,"
-                                        "\"rgb\":true,"
-                                        "\"dev\":{"
-                                        "\"mf\":\"Krzysztof Zdulski\","
-                                        "\"mdl\":\"LED Controller 2\","
-                                        "\"sw\":\"" VERSION "\","
-                                        "\"name\":\"" DEVICE_NAME "\","
-                                        "\"ids\":[\"" DEVICE_ID "\", \"%08x\"],"
-                                        "\"cns\":[[\"mac\", \"%s\"]]"
-                                        "}"
-                                        "}";
+PROGMEM const char* discoveryLights = "{"
+                                      "\"~\":\"%s\","
+                                      "\"name\":\"%s\","
+                                      "\"uniq_id\":\"%s\","
+                                      "\"cmd_t\":\"~/%s\","
+                                      "\"stat_t\":\"~/%s\","
+                                      "\"schema\":\"json\","
+                                      "\"brightness\": true,"
+                                      "\"rgb\":true,"
+                                      "\"dev\":{"
+                                      "\"mf\":\"Krzysztof Zdulski\","
+                                      "\"mdl\":\"LED Controller 2\","
+                                      "\"sw\":\"" VERSION "\","
+                                      "\"name\":\"" DEVICE_NAME "\","
+                                      "\"ids\":[\"" DEVICE_ID "\", \"%08x\"],"
+                                      "\"cns\":[[\"mac\", \"%s\"]]"
+                                      "}"
+                                      "}";
 
 PROGMEM const char* discoverySensor = "{"
                                       "\"~\":\"%s\","
-                                      "\"device_class\":\"signal_strength\","
-                                      "\"name\":\"" SIGNAL_SENSOR_NAME "\","
+                                      "\"device_class\":\"%s\","
+                                      "\"name\":\"%s\","
                                       "\"uniq_id\":\"%s\","
                                       "\"stat_t\":\"~/%s\","
                                       "\"json_attr_t\":\"~/%s\","
-                                      "\"unit_of_meas\":\"dBm\","
+                                      "\"unit_of_meas\":\"%s\","
                                       "\"expire_after\": %d,"
                                       "\"force_update\": true,"
                                       "\"dev\":{"
@@ -82,8 +82,21 @@ uint8_t expected_response_size;
 bool uart_free;
 
 void clear_serial() {
-    while (Serial.available()) {
-        Serial.read();
+    while (Serial.read() >= 0);
+}
+
+void uart_send(uint8_t* data, uint16_t size) {
+    for (uint16_t i = 0; i < size; ++i) {
+        if (Serial.available() && Serial.peek() == UART_BUSY) {
+            Serial.read();
+            uart_free = false;
+        }
+        while (!uart_free) {
+            if (Serial.available()) {
+                uart_free = true;
+            }
+        }
+        Serial.write(data[i]);
     }
 }
 
@@ -145,6 +158,31 @@ void publish_sensor_update() {
     publish(topic, message, true);
 }
 
+void request_temperature() {
+    uint8_t data[] = {UART_BEGIN, CMD_GET_TEMPS, 0, UART_END};
+    uart_send(data, sizeof(data));
+}
+
+void publish_temperature(const uint8_t* temperatures, uint8_t count) {
+    char topic[120];
+    char message[10];
+    for (uint8_t i = 0; i < count; ++i) {
+        int16_t temperature = temperatures[i * 2 + 1] << 8 | temperatures[i * 2];
+
+        // Check if the data is valid
+        if(temperature == INT16_MIN) {
+            continue;
+        }
+
+        char tempId[sizeof(TEMP_SENSOR_ID_PREFIX) + 3];
+
+        snprintf(tempId, sizeof(tempId), "%s_%u", TEMP_SENSOR_ID_PREFIX, i + 1);
+        get_topic(topic, sizeof(topic), sensorTopicPrefix, tempId, topicStateSuffix);
+        snprintf(message, sizeof(message), "%.1f", (float) temperature * 0.0625);
+        publish(topic, message, true);
+    }
+}
+
 void handle_data() {
     uint8_t* data = response_buffer + 3;
     switch (response_buffer[1]) {
@@ -168,22 +206,13 @@ void handle_data() {
             char message[JSON_BUFFER_SIZE];
             serializeJson(json, message);
             publish(topic, message, true);
+            break;
         }
-    }
-}
-
-void uart_send(uint8_t* data, uint16_t size) {
-    for (uint16_t i = 0; i < size; ++i) {
-        if (Serial.available() && Serial.peek() == UART_BUSY) {
-            Serial.read();
-            uart_free = false;
+        case CMD_GET_TEMPS_RESPONSE: {
+            uint8_t temp_count = data[0];
+            publish_temperature(data + 1, temp_count);
+            break;
         }
-        while (!uart_free) {
-            if (Serial.available()) {
-                uart_free = true;
-            }
-        }
-        Serial.write(data[i]);
     }
 }
 
@@ -277,6 +306,38 @@ void mqttCallback(char* topic, uint8_t* payload, uint16_t length) {
     }
 }
 
+void reboot() {
+    delay(RESTART_DELAY * 1000);
+    ESP.restart();
+}
+
+uint8_t request_temp_count() {
+    clear_serial();
+
+    uint8_t data[] = {UART_BEGIN, CMD_GET_TEMPS_COUNT, 0, UART_END};
+    uart_send(data, sizeof(data));
+
+    uint8_t buf[16];
+    uint8_t success = Serial.readBytesUntil(UART_END, buf, sizeof(buf));
+    if (!success) {
+        reboot();
+    }
+
+    uint8_t start = 0;
+    while (buf[start] != UART_BEGIN) {
+        start++;
+        if (start >= sizeof(buf)) {
+            reboot();
+        }
+    }
+
+    if (buf[start + 1] != CMD_GET_TEMPS_COUNT_RESPONSE) {
+        reboot();
+    }
+
+    return buf[start + 3];
+}
+
 void setup() {
     Serial.begin(BAUD);
 
@@ -295,7 +356,7 @@ void setup() {
     snprintf(nodeId, sizeof(nodeId), "%s_%08x", MQTT_NODE_ID_PREFIX, ESP.getChipId());
     mqtt.connect(nodeId, MQTT_USER, MQTT_PASSWORD);
 
-    size_t jsonSize = max(strlen(discoveryTemplate), strlen(discoverySensor)) + 192;
+    size_t jsonSize = max(strlen(discoveryLights), strlen(discoverySensor)) + 192;
     mqtt.setBufferSize(jsonSize + 64);
 
     snprintf(lightTopicPrefix, sizeof(lightTopicPrefix), "%s/light/%s", MQTT_DISCOVERY_PREFIX, nodeId);
@@ -315,7 +376,7 @@ void setup() {
     for (uint8_t i = 0; i < DEVICE_COUNT; ++i) {
         snprintf(topic, sizeof(topic), "%s/%s", lightTopicPrefix, deviceIds[i]);
         snprintf(deviceUid, sizeof(deviceUid), "%s_%s", nodeId, deviceIds[i]);
-        snprintf(discoveryJson, jsonSize, discoveryTemplate, topic, deviceNames[i],
+        snprintf(discoveryJson, jsonSize, discoveryLights, topic, deviceNames[i],
                  deviceUid, topicSetSuffix, topicStateSuffix, ESP.getChipId(), macStr);
 
 
@@ -338,12 +399,32 @@ void setup() {
     snprintf(deviceUid, sizeof(deviceUid), "%s_%s", nodeId, SIGNAL_SENSOR_ID);
     snprintf(topic, sizeof(topic), "%s/%s", sensorTopicPrefix, SIGNAL_SENSOR_ID);
 
-    snprintf(discoveryJson, jsonSize, discoverySensor, topic, deviceUid,
-             topicStateSuffix, topicAttributesSuffix, SIGNAL_PUBLISH_PERIOD * 2, ESP.getChipId(), macStr);
+    snprintf(discoveryJson, jsonSize, discoverySensor, topic, "signal_strength", SIGNAL_SENSOR_NAME, deviceUid,
+             topicStateSuffix, topicAttributesSuffix, "dBm", PUBLISH_PERIOD * 2, ESP.getChipId(), macStr);
 
 
     get_topic(topic, sizeof(topic), sensorTopicPrefix, SIGNAL_SENSOR_ID, topicConfigSuffix);
     publish(topic, discoveryJson, true);
+
+    uint8_t temp_count = request_temp_count();
+
+    for (uint8_t i = 0; i < temp_count; ++i) {
+        char tempId[sizeof(TEMP_SENSOR_ID_PREFIX) + 3];
+        char tempName[sizeof(TEMP_SENSOR_NAME_PREFIX) + 6];
+
+        snprintf(tempId, sizeof(tempId), "%s_%u", TEMP_SENSOR_ID_PREFIX, i + 1);
+        snprintf(tempName, sizeof(tempName), "%s%u", TEMP_SENSOR_NAME_PREFIX, i + 1);
+
+        snprintf(deviceUid, sizeof(deviceUid), "%s_%s", nodeId, tempId);
+        snprintf(topic, sizeof(topic), "%s/%s", sensorTopicPrefix, tempId);
+
+        snprintf(discoveryJson, jsonSize, discoverySensor, topic, "temperature", tempName, deviceUid,
+                 topicStateSuffix, topicAttributesSuffix, "°C", PUBLISH_PERIOD * 2, ESP.getChipId(), macStr);
+
+
+        get_topic(topic, sizeof(topic), sensorTopicPrefix, tempId, topicConfigSuffix);
+        publish(topic, discoveryJson, true);
+    }
 
     free(discoveryJson);
     mqtt.setBufferSize(256);
@@ -351,17 +432,18 @@ void setup() {
     request_all_devices();
 #endif // DEBUG_ESP_CUSTOM
     publish_sensor_update();
+    request_temperature();
 }
 
 void loop() {
-    if (millis() > last_state_update + SIGNAL_PUBLISH_PERIOD * 1000) {
+    if (millis() > last_state_update + PUBLISH_PERIOD * 1000) {
         last_state_update = millis();
         publish_sensor_update();
+        request_temperature();
     }
 
     if (!mqtt.loop()) {
-        delay(RESTART_DELAY * 1000);
-        ESP.restart();
+        reboot();
     }
 
     handle_uart();
