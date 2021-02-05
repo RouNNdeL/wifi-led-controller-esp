@@ -6,7 +6,7 @@
 #define ESP_CONFIG_H
 
 #define UART_BUFFER_SIZE 200
-#define VERSION "2.0.2"
+#define VERSION "2.1.1"
 
 #ifndef DEVICE_NAME
 #define DEVICE_NAME "LED Controller - Test"
@@ -28,6 +28,10 @@
 #ifndef DEVICE_NAMES
 #define DEVICE_NAMES {"Onboard Led - Test", "Test 1", "Test 2", "Test 3"}
 #endif /* DEVICE_NAMES */
+
+#ifndef MAX_TEMP_SENSOR_COUNT
+#define MAX_TEMP_SENSOR_COUNT 4
+#endif /* MAX_TEMP_SENSOR_COUNT */
 
 #ifndef TEMP_SENSOR_NAME_PREFIX
 #define TEMP_SENSOR_NAME_PREFIX "Test Temperature "
@@ -55,7 +59,7 @@
 #endif /* JSON_BUFFER_SIZE */
 // In Seconds
 #ifndef RESTART_DELAY
-#define RESTART_DELAY 30
+#define RESTART_DELAY 5
 #endif /* RESTART_DELAY */
 
 #ifndef MQTT_BROKER_HOST
